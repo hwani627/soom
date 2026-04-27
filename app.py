@@ -21,6 +21,27 @@ st.set_page_config(
     layout="wide",
 )
 
+
+@st.cache_data(show_spinner="📥 데이터 로딩 중...")
+def _load_session_cached(date: str) -> dict:
+    return loader.load_session(DATA_ROOT, date)
+
+
+@st.cache_data(show_spinner=False)
+def _detect_aasm_cached(date: str) -> pd.DataFrame:
+    s = _load_session_cached(date)
+    return detector.detect_events(s.get("breathing", pd.DataFrame()), detector.PRESETS["aasm"])
+
+
+@st.cache_data(show_spinner=False)
+def _detect_resmed_cached(date: str, apnea_thr: float, hypop_thr: float, min_dur: int) -> pd.DataFrame:
+    s = _load_session_cached(date)
+    params = detector.DetectorParams(
+        method="resmed", apnea_thr=apnea_thr, hypop_thr=hypop_thr,
+        min_duration_sec=float(min_dur), baseline_window_sec=100.0,
+    )
+    return detector.detect_events(s.get("breathing", pd.DataFrame()), params)
+
 # ─────────────────────────────────────────────────────────────────────
 # Sidebar
 # ─────────────────────────────────────────────────────────────────────
@@ -66,7 +87,7 @@ st.sidebar.caption(
 st.title("🌙 Soom CPAP Quality Analyzer")
 st.caption(f"세션 날짜: **{date}** (UTC) · 채널 12종 + Sleep Stage")
 
-session = loader.load_session(DATA_ROOT, date)
+session = _load_session_cached(date)
 if not session:
     st.error("세션을 불러올 수 없습니다.")
     st.stop()
@@ -132,13 +153,8 @@ st.markdown(f"**종합 등급: {overall['emoji']} `{overall['grade'].upper()}`**
 # ─────────────────────────────────────────────────────────────────────
 st.subheader("🔍 Apnea / Hypopnea 검출 vs SleepHQ 라벨")
 
-events_aasm = detector.detect_events(session.get("breathing", pd.DataFrame()), detector.PRESETS["aasm"])
-events_resmed_params = detector.DetectorParams(
-    method="resmed",
-    apnea_thr=resmed_apnea_thr, hypop_thr=resmed_hypop_thr,
-    min_duration_sec=float(min_dur), baseline_window_sec=100.0,
-)
-events_resmed = detector.detect_events(session.get("breathing", pd.DataFrame()), events_resmed_params)
+events_aasm = _detect_aasm_cached(date)
+events_resmed = _detect_resmed_cached(date, resmed_apnea_thr, resmed_hypop_thr, min_dur)
 
 c1, c2, c3 = st.columns(3)
 c1.metric("AASM 검출", len(events_aasm))

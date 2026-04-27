@@ -38,6 +38,14 @@ def _add_event_shapes(fig: go.Figure, events: pd.DataFrame, color: str, label: s
     ))
 
 
+def _downsample(df: pd.DataFrame, max_points: int = 8000) -> pd.DataFrame:
+    """Stride-based downsampling for fast SVG rendering on dense series (e.g. Breathing)."""
+    if df is None or len(df) <= max_points:
+        return df
+    stride = len(df) // max_points + 1
+    return df.iloc[::stride].reset_index(drop=True)
+
+
 def plot_timeseries(
     df: Optional[pd.DataFrame],
     channel: str,
@@ -46,10 +54,10 @@ def plot_timeseries(
     meta = CHANNEL_META[channel]
     fig = go.Figure()
     if df is not None and not df.empty and meta["col"] in df.columns:
-        # WebGL for high-density Breathing
-        trace_cls = go.Scattergl if channel == "breathing" else go.Scatter
-        fig.add_trace(trace_cls(
-            x=df["Timestamp_ET"], y=df[meta["col"]],
+        # SVG-only (WebGL removed for compatibility). Downsample dense series.
+        plot_df = _downsample(df, max_points=8000)
+        fig.add_trace(go.Scatter(
+            x=plot_df["Timestamp_ET"], y=plot_df[meta["col"]],
             mode="lines", line=dict(width=1, color="#0F62FE"),
             name=meta["title"], showlegend=False,
         ))

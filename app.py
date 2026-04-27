@@ -21,6 +21,27 @@ st.set_page_config(
     layout="wide",
 )
 
+# Compact typography for clinical readability
+st.markdown(
+    """
+    <style>
+      .block-container { padding-top: 1.2rem; padding-bottom: 1rem; }
+      h1 { font-size: 1.4rem !important; margin-bottom: 0.3rem; }
+      h2 { font-size: 1.05rem !important; margin-top: 0.8rem; margin-bottom: 0.3rem; }
+      h3 { font-size: 0.95rem !important; }
+      .stMarkdown p, .stCaption, label, .stRadio label, .stCheckbox label {
+          font-size: 0.85rem !important;
+      }
+      [data-testid="stCaptionContainer"] { font-size: 0.78rem !important; }
+      .stDataFrame { font-size: 0.82rem; }
+      .stDataFrame tbody td, .stDataFrame thead th { padding: 4px 8px !important; }
+      [data-testid="stSidebar"] .stMarkdown,
+      [data-testid="stSidebar"] label { font-size: 0.82rem !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_data(show_spinner="📥 데이터 로딩 중...")
 def _load_session_cached(date: str) -> dict:
@@ -96,10 +117,9 @@ duration_hours = loader.session_duration_hours(session)
 events = session.get("events")
 
 # ─────────────────────────────────────────────────────────────────────
-# Section 1 — Summary metrics
+# Section 1 — Summary table
 # ─────────────────────────────────────────────────────────────────────
 st.subheader("📋 세션 요약")
-m1, m2, m3, m4, m5 = st.columns(5)
 
 ah_mask = events["event_type"].isin(evaluator.APNEA_HYPOPNEA_TYPES) if events is not None else None
 ahi_total = (
@@ -118,35 +138,50 @@ press = session.get("pressure")
 avg_press = (
     float(press["Pressure_cmH2O"].mean()) if press is not None and not press.empty else float("nan")
 )
-m1.metric("AHI", f"{ahi_total:.2f}" if pd.notna(ahi_total) else "—", help="SleepHQ 이벤트 / 시간")
-m2.metric("Leak 95p", f"{leak_p95:.1f} L/min" if pd.notna(leak_p95) else "—")
-m3.metric(
-    "Usage",
+
+
+def _fmt(v, fmt: str) -> str:
+    return fmt.format(v) if pd.notna(v) else "—"
+
+
+usage_str = (
     f"{int(duration_hours)}h {int(round((duration_hours - int(duration_hours)) * 60)):02d}m"
-    if duration_hours else "—",
+    if duration_hours else "—"
 )
-m4.metric("Avg Pressure", f"{avg_press:.1f} cmH₂O" if pd.notna(avg_press) else "—")
-m5.metric("Lowest SpO₂", f"{spo2_lo:.1f} %" if pd.notna(spo2_lo) else "—")
+summary_df = pd.DataFrame([{
+    "AHI (/h)":          _fmt(ahi_total, "{:.2f}"),
+    "Leak 95p (L/min)":  _fmt(leak_p95,  "{:.1f}"),
+    "Usage":             usage_str,
+    "Avg Pressure (cmH₂O)": _fmt(avg_press, "{:.1f}"),
+    "Lowest SpO₂ (%)":   _fmt(spo2_lo, "{:.1f}"),
+}])
+st.dataframe(summary_df, hide_index=True, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────
-# Section 2 — Quality cards (XAI)
+# Section 2 — Quality cards as table
 # ─────────────────────────────────────────────────────────────────────
 st.subheader("🏥 품질 등급 (XAI 카드)")
 quality = evaluator.evaluate_quality(session, duration_hours)
 cards = quality["cards"]
 
-row1 = st.columns(4)
-row2 = st.columns(4)
-for i, card in enumerate(cards):
-    col = (row1 if i < 4 else row2)[i % 4]
-    with col:
-        st.markdown(f"#### {card['emoji']} {card['name']}")
-        st.markdown(f"**{card['value']} {card['unit']}**")
-        st.caption(f"기준: {card['threshold']}")
-        st.caption(f"출처: {card['source']}")
+cards_df = pd.DataFrame([
+    {
+        "지표": c["name"],
+        "측정값": f"{c['value']}{(' ' + c['unit']) if c['unit'] else ''}",
+        "등급": c["emoji"],
+        "기준": c["threshold"],
+        "출처": c["source"],
+    }
+    for c in cards
+])
+st.dataframe(cards_df, hide_index=True, use_container_width=True)
 
 overall = quality["overall"]
-st.markdown(f"**종합 등급: {overall['emoji']} `{overall['grade'].upper()}`** — {overall['reason']}")
+st.markdown(
+    f"**종합 등급: {overall['emoji']} `{overall['grade'].upper()}`** &nbsp;·&nbsp; "
+    f"<span style='font-size:0.85rem;color:#666;'>{overall['reason']}</span>",
+    unsafe_allow_html=True,
+)
 
 # ─────────────────────────────────────────────────────────────────────
 # Section 3 — Detection + agreement

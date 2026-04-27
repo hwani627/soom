@@ -30,3 +30,22 @@ def test_freezoom_figure_builds_with_hypnogram():
         meta, signals, hypno=hypno, channels=[0],
     )
     assert fig.data
+
+
+def test_epoch_figure_first_epoch_builds():
+    meta = edf_loader.load_meta(SYNTH_PSG)
+    signals = {0: edf_loader.load_signal(SYNTH_PSG, 0)}
+    fig = edf_plotting.make_epoch_figure(
+        meta, signals, hypno=None, channels=[0], epoch_idx=0,
+    )
+    assert fig.data
+
+
+def test_epoch_figure_with_hypno_builds():
+    meta = edf_loader.load_meta(SYNTH_PSG)
+    signals = {0: edf_loader.load_signal(SYNTH_PSG, 0)}
+    hypno = hypnogram.load_hypnogram(SYNTH_HYP)
+    fig = edf_plotting.make_epoch_figure(
+        meta, signals, hypno=hypno, channels=[0], epoch_idx=0,
+    )
+    assert fig.data

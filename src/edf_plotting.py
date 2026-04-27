@@ -119,3 +119,97 @@ def _add_hypnogram_band(
             line=dict(width=0), layer="below",
         )
     fig.update_yaxes(visible=False, row=row, col=1)
+
+
+def make_epoch_figure(
+    meta: EdfMeta,
+    signals: dict[int, np.ndarray],
+    hypno: list[HypnogramEpoch] | None,
+    channels: Iterable[int],
+    epoch_idx: int,
+    epoch_sec: float = 30.0,
+) -> go.Figure:
+    """30-second epoch view (PSG clinical standard).
+
+    No LTTB — one epoch holds at most ~10k samples per channel which Plotly
+    renders fine. A minimap row at the bottom shows the full-night hypnogram
+    plus a vertical marker at the current epoch.
+    """
+    chans = [c for c in channels if c in signals]
+    if not chans:
+        return go.Figure()
+
+    t0 = epoch_idx * epoch_sec
+    t1 = t0 + epoch_sec
+
+    has_minimap = bool(hypno)
+    total_rows = len(chans) + (1 if has_minimap else 0)
+    row_heights = [1.0] * len(chans) + ([0.35] if has_minimap else [])
+    titles = [meta.channels[c].label for c in chans] + (
+        ["Hypnogram (current epoch marked)"] if has_minimap else []
+    )
+
+    fig = make_subplots(
+        rows=total_rows, cols=1,
+        shared_xaxes=False,  # minimap uses full-night x-axis, channels use epoch slice
+        vertical_spacing=0.04,
+        row_heights=row_heights,
+        subplot_titles=titles,
+    )
+
+    for row_idx, ch in enumerate(chans, start=1):
+        info = meta.channels[ch]
+        sig = signals[ch]
+        fs = max(info.sample_rate, 1.0)
+        a = int(t0 * fs)
+        b = int(min(len(sig), t1 * fs))
+        t = np.arange(a, b, dtype=np.float64) / fs
+        fig.add_trace(
+            go.Scatter(
+                x=t, y=sig[a:b], mode="lines",
+                line=dict(width=1.0,
+                          color=CHANNEL_GROUP_COLORS.get(info.group,
+                                                         CHANNEL_GROUP_COLORS["Other"])),
+                name=info.label, showlegend=False,
+            ),
+            row=row_idx, col=1,
+        )
+        fig.update_yaxes(title_text=info.physical_dim or "", row=row_idx, col=1)
+        fig.update_xaxes(range=[t0, t1], row=row_idx, col=1)
+
+    if has_minimap:
+        _add_hypnogram_minimap(fig, hypno, current_t=t0,
+                               total_dur=meta.duration_sec, row=total_rows)
+
+    fig.update_xaxes(title_text="Time (s)", row=total_rows, col=1)
+    fig.update_layout(
+        height=180 * len(chans) + (80 if has_minimap else 0) + 80,
+        margin=dict(l=55, r=20, t=40, b=40),
+        hovermode="x unified",
+    )
+    return fig
+
+
+def _add_hypnogram_minimap(
+    fig: go.Figure, epochs: list[HypnogramEpoch],
+    current_t: float, total_dur: float, row: int,
+) -> None:
+    """Render full-night hypnogram band + a vertical marker at current_t."""
+    xref = "x" if row == 1 else f"x{row}"
+    yref = "y domain" if row == 1 else f"y{row} domain"
+    for e in epochs:
+        fig.add_shape(
+            type="rect", xref=xref, yref=yref,
+            x0=e.start_sec, x1=e.start_sec + e.duration_sec,
+            y0=0, y1=1,
+            fillcolor=_STAGE_COLORS.get(e.stage, _STAGE_COLORS[Stage.UNK]),
+            line=dict(width=0), layer="below",
+        )
+    # Current-epoch marker
+    fig.add_shape(
+        type="line", xref=xref, yref=yref,
+        x0=current_t, x1=current_t, y0=0, y1=1,
+        line=dict(color="black", width=2),
+    )
+    fig.update_yaxes(visible=False, row=row, col=1)
+    fig.update_xaxes(range=[0, total_dur], row=row, col=1)

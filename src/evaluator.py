@@ -38,13 +38,13 @@ def _na_card(name: str, source: str, threshold: str = "—") -> dict:
 
 def _ahi_card(events: Optional[pd.DataFrame], duration_hours: Optional[float]) -> dict:
     if events is None or events.empty or duration_hours is None or duration_hours <= 0:
-        return _na_card("AHI", "AASM 2012", "<5 / 5–15 / ≥15")
+        return _na_card("AHI (무호흡-저호흡 지수)", "AASM 2012", "<5 / 5–15 / ≥15")
     n = events[events["event_type"].isin(APNEA_HYPOPNEA_TYPES)].shape[0]
     value = n / duration_hours
     if value < 5:    grade = GRADE_PASS
     elif value < 15: grade = GRADE_WARN
     else:            grade = GRADE_FAIL
-    return {"name": "AHI", "value": round(value, 2), "unit": "/h",
+    return {"name": "AHI (무호흡-저호흡 지수)", "value": round(value, 2), "unit": "/h",
             "threshold": "<5 정상 / 5–15 경증 / ≥15 중등증·중증",
             "source": "AASM 2012 (Berry et al.)",
             "grade": grade, "emoji": _emoji(grade)}
@@ -52,31 +52,31 @@ def _ahi_card(events: Optional[pd.DataFrame], duration_hours: Optional[float]) -
 
 def _leak_card(leakrate: Optional[pd.DataFrame]) -> dict:
     if leakrate is None or leakrate.empty or "LeakRate_Lpm" not in leakrate.columns:
-        return _na_card("Leak (95p)", "ResMed Clinical Guideline", "<24 L/min")
+        return _na_card("Leak 95p (누설량 95백분위)", "ResMed Clinical Guideline", "<24 L/min")
     p95 = float(np.nanpercentile(leakrate["LeakRate_Lpm"], 95))
     grade = GRADE_PASS if p95 < 24 else GRADE_FAIL
-    return {"name": "Leak (95p)", "value": round(p95, 1), "unit": "L/min",
+    return {"name": "Leak 95p (누설량 95백분위)", "value": round(p95, 1), "unit": "L/min",
             "threshold": "95p < 24 L/min", "source": "ResMed Clinical Guideline",
             "grade": grade, "emoji": _emoji(grade)}
 
 
 def _usage_card(duration_hours: Optional[float]) -> dict:
     if duration_hours is None:
-        return _na_card("Usage", "CMS Medicare 2008", "≥4 h/night")
+        return _na_card("Usage (사용 시간)", "CMS Medicare 2008", "≥4 h/night")
     grade = GRADE_PASS if duration_hours >= 4.0 else GRADE_FAIL
     h = int(duration_hours)
     m = int(round((duration_hours - h) * 60))
-    return {"name": "Usage", "value": f"{h}h {m:02d}m", "unit": "",
+    return {"name": "Usage (사용 시간)", "value": f"{h}h {m:02d}m", "unit": "",
             "threshold": "≥4 h/night", "source": "CMS Medicare 2008 (CAG-00093R2)",
             "grade": grade, "emoji": _emoji(grade)}
 
 
 def _pressure_card(pressure: Optional[pd.DataFrame]) -> dict:
     if pressure is None or pressure.empty or "Pressure_cmH2O" not in pressure.columns:
-        return _na_card("Pressure (95p)", "ResMed AutoSet", "95p / max < 0.9")
+        return _na_card("Pressure 95p (압력 95백분위)", "ResMed AutoSet", "95p / max < 0.9")
     p95 = float(np.nanpercentile(pressure["Pressure_cmH2O"], 95))
     grade = GRADE_WARN if p95 / 20.0 >= 0.9 else GRADE_PASS
-    return {"name": "Pressure (95p)", "value": round(p95, 1), "unit": "cmH₂O",
+    return {"name": "Pressure 95p (압력 95백분위)", "value": round(p95, 1), "unit": "cmH₂O",
             "threshold": "95p < 18 cmH₂O (default max 20)",
             "source": "ResMed AutoSet manual",
             "grade": grade, "emoji": _emoji(grade)}
@@ -86,12 +86,12 @@ def _odi_card(spo2: Optional[pd.DataFrame], duration_hours: Optional[float]) -> 
     """Oxygen Desaturation Index (≥3%) per hour."""
     if (spo2 is None or spo2.empty or duration_hours is None or duration_hours <= 0
             or "SpO2_pct" not in spo2.columns):
-        return _na_card("ODI 3%", "AASM 2012", "<5 정상 / 5–15 경증 / ≥15 중등 이상")
+        return _na_card("ODI 3% (산소 탈포화 지수)", "AASM 2012", "<5 정상 / 5–15 경증 / ≥15 중등 이상")
 
     s = spo2.sort_values("Timestamp_ET")
     vals = s["SpO2_pct"].to_numpy()
     if vals.size < 2:
-        return _na_card("ODI 3%", "AASM 2012")
+        return _na_card("ODI 3% (산소 탈포화 지수)", "AASM 2012")
 
     # Detect drops of >=3 percentage points within ~120-second windows from a local baseline.
     desat_count = 0
@@ -107,7 +107,7 @@ def _odi_card(spo2: Optional[pd.DataFrame], duration_hours: Optional[float]) -> 
     if odi < 5:    grade = GRADE_PASS
     elif odi < 15: grade = GRADE_WARN
     else:          grade = GRADE_FAIL
-    return {"name": "ODI 3%", "value": round(odi, 2), "unit": "/h",
+    return {"name": "ODI 3% (산소 탈포화 지수)", "value": round(odi, 2), "unit": "/h",
             "threshold": "<5 / 5–15 / ≥15", "source": "AASM 2012",
             "grade": grade, "emoji": _emoji(grade)}
 
@@ -115,7 +115,7 @@ def _odi_card(spo2: Optional[pd.DataFrame], duration_hours: Optional[float]) -> 
 def _t90_card(spo2: Optional[pd.DataFrame]) -> dict:
     """Time spent below 90% SpO2 (cumulative minutes + percentage of recording)."""
     if spo2 is None or spo2.empty or "SpO2_pct" not in spo2.columns:
-        return _na_card("T90", "Punjabi NM 2009", "<5% 정상")
+        return _na_card("T90 (SpO₂<90% 누적 시간)", "Punjabi NM 2009", "<5% 정상")
     s = spo2.sort_values("Timestamp_ET").copy()
     s["dt_sec"] = s["Timestamp_ET"].diff().dt.total_seconds().fillna(0).clip(lower=0, upper=10)
     below = s[s["SpO2_pct"] < 90]
@@ -125,7 +125,7 @@ def _t90_card(spo2: Optional[pd.DataFrame]) -> dict:
     if pct < 1:    grade = GRADE_PASS
     elif pct < 5:  grade = GRADE_WARN
     else:          grade = GRADE_FAIL
-    return {"name": "T90", "value": f"{sec_below/60:.1f} min ({pct:.1f}%)", "unit": "",
+    return {"name": "T90 (SpO₂<90% 누적 시간)", "value": f"{sec_below/60:.1f} min ({pct:.1f}%)", "unit": "",
             "threshold": "<1% 정상 / <5% 경계 / ≥5% 위험",
             "source": "Punjabi NM, Sleep Med 2009",
             "grade": grade, "emoji": _emoji(grade)}
@@ -133,12 +133,12 @@ def _t90_card(spo2: Optional[pd.DataFrame]) -> dict:
 
 def _lowest_spo2_card(spo2: Optional[pd.DataFrame]) -> dict:
     if spo2 is None or spo2.empty or "SpO2_pct" not in spo2.columns:
-        return _na_card("Lowest SpO₂", "PSG standard", "≥90% 정상")
+        return _na_card("Lowest SpO₂ (최저 산소포화도)", "PSG standard", "≥90% 정상")
     lo = float(spo2["SpO2_pct"].min())
     if lo >= 90:    grade = GRADE_PASS
     elif lo >= 85:  grade = GRADE_WARN
     else:           grade = GRADE_FAIL
-    return {"name": "Lowest SpO₂", "value": round(lo, 1), "unit": "%",
+    return {"name": "Lowest SpO₂ (최저 산소포화도)", "value": round(lo, 1), "unit": "%",
             "threshold": "≥90% 정상 / 85–89% 경계 / <85% 저산소",
             "source": "PSG standard",
             "grade": grade, "emoji": _emoji(grade)}

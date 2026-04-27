@@ -6,11 +6,11 @@
 
 ## 📦 기능
 
-- 13개 날짜 번들 데이터 (CAPA_Data) 또는 사용자 ZIP 업로드
-- 시계열 차트 4종: Breathing / Pressure / LeakRate / FlowLimit
+- 7일치 SleepHQ 통합 데이터 (long-format raw + 이벤트 라벨 + Sleep Stage)
+- 12채널 시계열: Breathing / Pressure / EPAP / Leak / Flow Limit / Snore / SpO₂ / Pulse Rate / Movement / Tidal Volume / Resp Rate / Minute Vent (+ Sleep Stage)
 - Apnea/Hypopnea 검출 2종 (AASM, ResMed) + 임계값 슬라이더
-- SleepHQ 라벨과의 카운트 일치율 비교
-- 4지표 + 종합 품질 등급 카드 (XAI 스타일, 학술 출처 명시)
+- **timestamp 단위** SleepHQ 라벨 일치율 (Precision/Recall/F1)
+- 7지표 + 종합 품질 등급 카드 (AHI, Leak, Usage, Pressure, ODI 3%, T90, Lowest SpO₂)
 
 ## 🚀 빠른 시작
 
@@ -47,8 +47,10 @@ soom/
 │   ├── detector.py          # Apnea/Hypopnea 검출 (AASM/ResMed)
 │   ├── evaluator.py         # 품질 등급 + SleepHQ 비교
 │   └── plotting.py          # Plotly 차트
-├── CAPA_Data/               # 13개 날짜 익명 데모 데이터
-│   └── YYYYMMDD/*.csv
+├── CAPA_Data/               # SleepHQ 7일치 통합 export (long format)
+│   ├── sleephq_rawdata_*.csv         # 12채널 raw (long format)
+│   ├── sleephq_events_AHI_*.csv      # CA/H/RERA 이벤트 (timestamp 정확)
+│   └── sleephq_sleep_stages_*.csv    # 수면 단계 transitions
 ├── tests/                   # pytest 단위 테스트
 ├── docs/specs/              # 설계 문서
 ├── .streamlit/config.toml   # 테마·서버 설정
@@ -74,13 +76,15 @@ soom/
 | Leak (95p) | <24 L/min | ResMed Clinical Guideline |
 | Usage | ≥4 h/night | CMS Medicare 2008 (CAG-00093R2) |
 | Pressure (95p) | / max < 0.9 | ResMed AutoSet manual |
+| **ODI 3%** | <5 / 5–15 / ≥15 | AASM 2012 |
+| **T90** | <1% 정상 / <5% 경계 / ≥5% 위험 | Punjabi NM, Sleep Med 2009 |
+| **Lowest SpO₂** | ≥90% 정상 / 85–89% 경계 / <85% 저산소 | PSG standard |
 | 종합 | AND 게이트 (최하위 등급) | — |
 
-## ⚠️ 한계 (1차 버전)
+## ⚠️ 한계 (현재 버전)
 
-- **CA/OA 구분 불가**: ResMed의 FOT(Forced Oscillation Technique) 채널이 export CSV에 포함되지 않음
-- **AASM Hypopnea의 SpO₂ 3% desat 조건 검증 불가**: 외부 SpO₂ 동기화 필요
-- **timestamp 단위 라벨 매칭 불가**: SleepHQ는 카운트 단위만 export → 일치율은 카운트 기반
+- **CA/OA 구분 불가**: ResMed의 FOT(Forced Oscillation Technique) 채널이 export CSV에 포함되지 않음. SleepHQ 라벨에는 CA/H가 분리되어 있으나 본 검출기 자체는 통합 Apnea만 산출.
+- **Sleep Stage 인코딩 의미 미확정**: 데이터 파일의 stage 값(2/3/4/5)에 대한 wearable별 매핑은 추후 확정 필요.
 
 ## 📚 학술 근거 출처
 

@@ -5,13 +5,16 @@ from typing import Optional
 
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 CHANNEL_META = {
-    "breathing": {"col": "Breathing_Lpm", "title": "Breathing (L/min)", "y": "Flow (L/min)"},
-    "pressure":  {"col": "Pressure_cmH2O", "title": "Pressure (cmH₂O)", "y": "cmH₂O"},
-    "leakrate":  {"col": "LeakRate_Lpm", "title": "Leak Rate (L/min)", "y": "L/min"},
-    "flowlimit": {"col": "FlowLimit", "title": "Flow Limit", "y": "FL index"},
+    "breathing": {"col": "Breathing_Lpm", "title": "Breathing", "y": "Flow (L/min)", "color": "#0F62FE"},
+    "pressure":  {"col": "Pressure_cmH2O", "title": "Pressure", "y": "cmH₂O",       "color": "#DA1E28"},
+    "leakrate":  {"col": "LeakRate_Lpm", "title": "Leak Rate",  "y": "L/min",       "color": "#FF832B"},
+    "flowlimit": {"col": "FlowLimit",    "title": "Flow Limit", "y": "FL index",    "color": "#198038"},
 }
+
+CHANNEL_ORDER = ("breathing", "pressure", "leakrate", "flowlimit")
 
 OVERLAY_COLORS = {
     "aasm":    "rgba(255,0,0,0.18)",     # red
@@ -54,14 +57,14 @@ def plot_timeseries(
     channel: str,
     overlays: Optional[dict[str, pd.DataFrame]] = None,
 ) -> go.Figure:
+    """Single-channel chart (kept for backward compatibility / individual exports)."""
     meta = CHANNEL_META[channel]
     fig = go.Figure()
     if df is not None and not df.empty and meta["col"] in df.columns:
-        # SVG-only (WebGL removed for compatibility). Downsample dense series.
         plot_df = _downsample(df, max_points=8000)
         fig.add_trace(go.Scatter(
             x=plot_df["Timestamp_ET"], y=plot_df[meta["col"]],
-            mode="lines", line=dict(width=1, color="#0F62FE"),
+            mode="lines", line=dict(width=1, color=meta["color"]),
             name=meta["title"], showlegend=False,
         ))
     if overlays:
@@ -79,6 +82,68 @@ def plot_timeseries(
         yaxis_title=meta["y"],
         height=380,
         margin=dict(l=40, r=20, t=40, b=30),
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    return fig
+
+
+def plot_multichannel(
+    session: dict,
+    overlays: Optional[dict[str, pd.DataFrame]] = None,
+    height_per_row: int = 220,
+) -> go.Figure:
+    """Stacked 4-row chart: Breathing / Pressure / LeakRate / FlowLimit with shared x-axis.
+
+    Each row uses its own color. Event overlays (Apnea/Hypopnea/SleepHQ) are applied
+    to every row so a vertical band crosses all four panels at the same time window.
+    """
+    titles = [f"{CHANNEL_META[c]['title']}  ({CHANNEL_META[c]['y']})" for c in CHANNEL_ORDER]
+    fig = make_subplots(
+        rows=len(CHANNEL_ORDER), cols=1,
+        shared_xaxes=True, vertical_spacing=0.04,
+        subplot_titles=titles,
+    )
+
+    for i, ch in enumerate(CHANNEL_ORDER, start=1):
+        meta = CHANNEL_META[ch]
+        df = session.get(ch)
+        if df is not None and not df.empty and meta["col"] in df.columns:
+            plot_df = _downsample(df, max_points=8000)
+            fig.add_trace(
+                go.Scatter(
+                    x=plot_df["Timestamp_ET"], y=plot_df[meta["col"]],
+                    mode="lines", line=dict(width=1, color=meta["color"]),
+                    name=meta["title"], showlegend=False, hovertemplate=f"%{{x}}<br>%{{y}} {meta['y']}<extra></extra>",
+                ),
+                row=i, col=1,
+            )
+        fig.update_yaxes(title_text=meta["y"], row=i, col=1)
+
+    # Event overlays: one rect per row per event
+    if overlays:
+        all_shapes: list[dict] = []
+        for method, evs in overlays.items():
+            if method not in OVERLAY_COLORS or evs is None or evs.empty:
+                continue
+            for r in range(1, len(CHANNEL_ORDER) + 1):
+                xref = "x" if r == 1 else f"x{r}"
+                yref = "y domain" if r == 1 else f"y{r} domain"
+                for _, row in evs.iterrows():
+                    all_shapes.append(dict(
+                        type="rect", xref=xref, yref=yref,
+                        x0=row["start_ts"], x1=row["end_ts"], y0=0, y1=1,
+                        fillcolor=OVERLAY_COLORS[method], opacity=0.5,
+                        line=dict(width=0), layer="below",
+                    ))
+            fig.add_trace(_legend_dummy(OVERLAY_COLORS[method], method.upper()), row=1, col=1)
+        if all_shapes:
+            fig.update_layout(shapes=all_shapes)
+
+    fig.update_xaxes(title_text="Time", row=len(CHANNEL_ORDER), col=1)
+    fig.update_layout(
+        height=height_per_row * len(CHANNEL_ORDER) + 60,
+        margin=dict(l=50, r=20, t=40, b=40),
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )

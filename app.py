@@ -198,15 +198,8 @@ if show_resmed:
 if show_sleephq and events_sleephq is not None:
     overlays["sleephq"] = events_sleephq
 
-tab_b, tab_p, tab_l, tab_f = st.tabs(["Breathing", "Pressure", "LeakRate", "FlowLimit"])
-with tab_b:
-    st.plotly_chart(plotting.plot_timeseries(session.get("breathing"), "breathing", overlays), use_container_width=True)
-with tab_p:
-    st.plotly_chart(plotting.plot_timeseries(session.get("pressure"), "pressure", overlays), use_container_width=True)
-with tab_l:
-    st.plotly_chart(plotting.plot_timeseries(session.get("leakrate"), "leakrate", overlays), use_container_width=True)
-with tab_f:
-    st.plotly_chart(plotting.plot_timeseries(session.get("flowlimit"), "flowlimit", overlays), use_container_width=True)
+st.caption("4개 채널이 시간축을 공유합니다. 한 차트에서 zoom/pan 시 모두 함께 이동합니다.")
+st.plotly_chart(plotting.plot_multichannel(session, overlays), use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────
 # Footer

@@ -17,9 +17,15 @@ CHANNEL_META = {
 CHANNEL_ORDER = ("breathing", "pressure", "leakrate", "flowlimit")
 
 OVERLAY_COLORS = {
-    "aasm":    "rgba(255,0,0,0.18)",     # red
-    "resmed":  "rgba(0,0,255,0.18)",     # blue
-    "sleephq": "rgba(0,160,0,0.18)",     # green
+    "aasm":    "rgba(220,30,30,0.38)",       # crimson
+    "resmed":  "rgba(138,63,252,0.38)",      # purple (avoids clash with Breathing's blue)
+    "sleephq": "rgba(255,176,0,0.38)",       # amber (high visibility on white bg)
+}
+
+OVERLAY_LEGEND_COLORS = {
+    "aasm":    "rgba(220,30,30,0.95)",
+    "resmed":  "rgba(138,63,252,0.95)",
+    "sleephq": "rgba(255,176,0,0.95)",
 }
 
 
@@ -30,16 +36,17 @@ def _build_event_shapes(events: pd.DataFrame, color: str) -> list[dict]:
         dict(
             type="rect", xref="x", yref="paper",
             x0=row["start_ts"], x1=row["end_ts"], y0=0, y1=1,
-            fillcolor=color, opacity=0.5, line=dict(width=0), layer="below",
+            fillcolor=color, opacity=1.0, line=dict(width=0), layer="below",
         )
         for _, row in events.iterrows()
     ]
 
 
-def _legend_dummy(color: str, label: str) -> go.Scatter:
+def _legend_dummy(method: str, label: str) -> go.Scatter:
+    legend_color = OVERLAY_LEGEND_COLORS.get(method, OVERLAY_COLORS.get(method, "rgba(0,0,0,0.8)"))
     return go.Scatter(
         x=[None], y=[None], mode="markers",
-        marker=dict(size=10, color=color.replace("0.18", "0.6")),
+        marker=dict(size=12, color=legend_color, symbol="square"),
         name=label, showlegend=True,
     )
 
@@ -73,7 +80,7 @@ def plot_timeseries(
             if method not in OVERLAY_COLORS:
                 continue
             all_shapes.extend(_build_event_shapes(evs, OVERLAY_COLORS[method]))
-            fig.add_trace(_legend_dummy(OVERLAY_COLORS[method], method.upper()))
+            fig.add_trace(_legend_dummy(method, method.upper()))
         if all_shapes:
             fig.update_layout(shapes=all_shapes)
     fig.update_layout(
@@ -136,7 +143,7 @@ def plot_multichannel(
                         fillcolor=OVERLAY_COLORS[method], opacity=0.5,
                         line=dict(width=0), layer="below",
                     ))
-            fig.add_trace(_legend_dummy(OVERLAY_COLORS[method], method.upper()), row=1, col=1)
+            fig.add_trace(_legend_dummy(method, method.upper()), row=1, col=1)
         if all_shapes:
             fig.update_layout(shapes=all_shapes)
 

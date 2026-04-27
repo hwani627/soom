@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import pyedflib
 
 # Channel-group classification rules.
 # Patterns are word-boundary anchored so substring collisions are impossible
@@ -101,3 +102,55 @@ def pair_hypnogram(psg_path: Path) -> Path | None:
             return cand  # first match wins
 
     return None
+
+
+def load_meta(path: Path) -> EdfMeta:
+    """Read header-level info from an EDF file.
+
+    Raises:
+        OSError / ValueError / RuntimeError on a corrupt or non-EDF file
+        (the underlying pyedflib exceptions, surfaced as-is).
+    """
+    path = Path(path)
+    reader = pyedflib.EdfReader(str(path))
+    try:
+        n = reader.signals_in_file
+        labels = reader.getSignalLabels()
+        sample_rates = reader.getSampleFrequencies()
+        n_samples_arr = reader.getNSamples()
+        physical_dims = [reader.getPhysicalDimension(i) for i in range(n)]
+        start_dt = reader.getStartdatetime()
+        duration_sec = float(reader.getFileDuration())
+        # Subject identifier is in the header's local patient field.
+        subject_id = (reader.getPatientCode() or reader.getPatientName()
+                      or path.stem)
+        channels = tuple(
+            ChannelInfo(
+                label=labels[i],
+                sample_rate=float(sample_rates[i]),
+                n_samples=int(n_samples_arr[i]),
+                physical_dim=physical_dims[i],
+                group=classify_channel(labels[i]),
+            )
+            for i in range(n)
+        )
+    finally:
+        reader.close()
+    return EdfMeta(
+        path=path,
+        subject_id=subject_id,
+        start_datetime=start_dt,
+        duration_sec=duration_sec,
+        channels=channels,
+    )
+
+
+def load_signal(path: Path, ch_idx: int) -> np.ndarray:
+    """Load one channel's full signal as a float32 numpy array."""
+    path = Path(path)
+    reader = pyedflib.EdfReader(str(path))
+    try:
+        sig = reader.readSignal(ch_idx).astype(np.float32, copy=False)
+    finally:
+        reader.close()
+    return sig

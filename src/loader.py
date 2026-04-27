@@ -10,6 +10,7 @@ long format into per-channel DataFrames keyed by canonical channel names.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -39,14 +40,26 @@ DATA_TYPE_MAP = {
 }
 
 
+_DATE_RE = re.compile(r"sleephq_rawdata_(\d{4}-\d{2}-\d{2})\.csv$")
+
+
 def list_available_dates(data_root: Path) -> list[str]:
-    """Return sorted unique date strings (YYYY-MM-DD) found in the rawdata file."""
-    raw_csv = _find_one(data_root, "sleephq_rawdata_*.csv")
-    if raw_csv is None:
+    """Return sorted unique YYYY-MM-DD found in per-day rawdata files."""
+    data_root = Path(data_root)
+    if not data_root.exists():
         return []
-    # Read only the date column to keep it cheap.
-    df = pd.read_csv(raw_csv, usecols=["date"])
-    return sorted(df["date"].dropna().unique().tolist())
+    dates: set[str] = set()
+    for p in data_root.glob("sleephq_rawdata_*.csv"):
+        m = _DATE_RE.search(p.name)
+        if m:
+            dates.add(m.group(1))
+    return sorted(dates)
+
+
+def _rawdata_path(data_root: Path, date: str) -> Optional[Path]:
+    """Locate the per-day rawdata file."""
+    candidate = data_root / f"sleephq_rawdata_{date}.csv"
+    return candidate if candidate.exists() else None
 
 
 def load_session(data_root: Path, date: str) -> dict[str, pd.DataFrame]:
@@ -58,14 +71,16 @@ def load_session(data_root: Path, date: str) -> dict[str, pd.DataFrame]:
         - 'events':      DataFrame of SleepHQ events for that date
         - 'sleep_stage': DataFrame of sleep stage transitions for that date
     """
-    raw_csv    = _find_one(data_root, "sleephq_rawdata_*.csv")
+    data_root = Path(data_root)
+    raw_csv    = _rawdata_path(data_root, date)
     events_csv = _find_one(data_root, "sleephq_events_AHI_*.csv")
     stages_csv = _find_one(data_root, "sleephq_sleep_stages_*.csv")
     if raw_csv is None:
-        raise FileNotFoundError(f"sleephq_rawdata_*.csv not found in {data_root}")
+        raise FileNotFoundError(
+            f"sleephq_rawdata_{date}.csv not found in {data_root}"
+        )
 
     raw = pd.read_csv(raw_csv)
-    raw = raw[raw["date"] == date].copy()
     raw["datetime_utc"] = pd.to_datetime(raw["datetime_utc"], errors="coerce")
     raw = raw.dropna(subset=["datetime_utc"])
 

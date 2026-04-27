@@ -20,22 +20,25 @@ OVERLAY_COLORS = {
 }
 
 
-def _add_event_shapes(fig: go.Figure, events: pd.DataFrame, color: str, label: str) -> None:
+def _build_event_shapes(events: pd.DataFrame, color: str) -> list[dict]:
     if events is None or events.empty:
-        return
-    for _, row in events.iterrows():
-        fig.add_vrect(
-            x0=row["start_ts"], x1=row["end_ts"],
-            fillcolor=color, opacity=0.5, line_width=0,
-            annotation_text=row["type"][:1].upper(), annotation_position="top left",
-            annotation=dict(font_size=9),
+        return []
+    return [
+        dict(
+            type="rect", xref="x", yref="paper",
+            x0=row["start_ts"], x1=row["end_ts"], y0=0, y1=1,
+            fillcolor=color, opacity=0.5, line=dict(width=0), layer="below",
         )
-    # Legend dummy
-    fig.add_trace(go.Scatter(
+        for _, row in events.iterrows()
+    ]
+
+
+def _legend_dummy(color: str, label: str) -> go.Scatter:
+    return go.Scatter(
         x=[None], y=[None], mode="markers",
         marker=dict(size=10, color=color.replace("0.18", "0.6")),
         name=label, showlegend=True,
-    ))
+    )
 
 
 def _downsample(df: pd.DataFrame, max_points: int = 8000) -> pd.DataFrame:
@@ -62,10 +65,14 @@ def plot_timeseries(
             name=meta["title"], showlegend=False,
         ))
     if overlays:
+        all_shapes: list[dict] = []
         for method, evs in overlays.items():
             if method not in OVERLAY_COLORS:
                 continue
-            _add_event_shapes(fig, evs, OVERLAY_COLORS[method], label=method.upper())
+            all_shapes.extend(_build_event_shapes(evs, OVERLAY_COLORS[method]))
+            fig.add_trace(_legend_dummy(OVERLAY_COLORS[method], method.upper()))
+        if all_shapes:
+            fig.update_layout(shapes=all_shapes)
     fig.update_layout(
         title=meta["title"],
         xaxis_title="Time",

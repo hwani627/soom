@@ -1,0 +1,6 @@
+﻿Metric,Min,Med,95th_pct,99_5th_pct
+Pressure,5.8,5.8,5.8,5.8
+Epap,5.8,5.8,5.8,5.8
+Leak rate,0.0,9.6,44.4,62.4
+Resp rate,6.6,15.6,20.2,28.0
+Flow limit,0.0,0.0,0.15,0.29

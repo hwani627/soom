@@ -1,8 +1,8 @@
 """Plotly figures for the EDF viewer page.
 
-`make_freezoom_figure` wraps plotly_resampler.FigureResampler so that the
-plot dynamically downsamples (LTTB) on zoom — see Steinarsson 2013 and
-Van Der Donckt et al., SoftwareX 2022.
+`make_freezoom_figure` renders the whole recording with stride-based
+downsampling so each channel is reduced to at most ``MAX_FREEZOOM_POINTS``
+samples for stable rendering on Streamlit Cloud.
 
 All callers must pass numpy arrays already loaded via edf_loader.load_signal.
 """
@@ -13,10 +13,13 @@ from typing import Iterable
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from plotly_resampler import FigureResampler
 
 from src.edf_loader import EdfMeta
 from src.hypnogram import HypnogramEpoch, Stage
+
+# Cap per-channel rendered points in free-zoom mode. ~5k points × 7 channels
+# stays under Plotly's comfortable ceiling and avoids client-side jank.
+MAX_FREEZOOM_POINTS = 5000
 
 # Group → line color (consistent across both freezoom and epoch modes).
 CHANNEL_GROUP_COLORS: dict[str, str] = {
@@ -40,13 +43,35 @@ _STAGE_COLORS: dict[Stage, str] = {
 }
 
 
+def _stride_downsample(
+    sig: np.ndarray, sample_rate: float, max_points: int = MAX_FREEZOOM_POINTS,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Reduce *sig* to at most *max_points* via fixed-stride sampling.
+
+    Returns ``(t, sig)`` where ``t`` is the time axis in seconds. Cheaper and
+    simpler than LTTB; visually adequate for an overview chart of an 8h+ PSG.
+    """
+    fs = max(sample_rate, 1.0)
+    n = len(sig)
+    if n <= max_points:
+        t = np.arange(n, dtype=np.float64) / fs
+        return t, sig
+    stride = n // max_points + 1
+    return (np.arange(0, n, stride, dtype=np.float64) / fs,
+            sig[::stride])
+
+
 def make_freezoom_figure(
     meta: EdfMeta,
     signals: dict[int, np.ndarray],
     hypno: list[HypnogramEpoch] | None,
     channels: Iterable[int],
 ) -> go.Figure:
-    """Stacked-subplot view of the whole recording, with dynamic LTTB.
+    """Stacked-subplot view of the whole recording.
+
+    Each channel is stride-downsampled to at most ``MAX_FREEZOOM_POINTS``
+    points before plotting so the page stays responsive even with 8h+ PSG
+    data. For full-fidelity inspection use ``make_epoch_figure`` instead.
 
     Args:
         meta: Result of `edf_loader.load_meta`.
@@ -66,27 +91,24 @@ def make_freezoom_figure(
         ["Sleep stage (Hypnogram)"] if has_hypno else []
     )
 
-    base = make_subplots(
+    fig = make_subplots(
         rows=total_rows, cols=1, shared_xaxes=True,
         vertical_spacing=0.025,
         row_heights=row_heights,
         subplot_titles=titles,
     )
-    fig = FigureResampler(base, default_n_shown_samples=4000)
 
     for row_idx, ch in enumerate(chans, start=1):
         info = meta.channels[ch]
-        sig = signals[ch]
-        t = np.arange(len(sig), dtype=np.float64) / max(info.sample_rate, 1.0)
+        t, y = _stride_downsample(signals[ch], info.sample_rate)
         fig.add_trace(
             go.Scatter(
-                mode="lines",
+                x=t, y=y, mode="lines",
                 line=dict(width=1.0,
                           color=CHANNEL_GROUP_COLORS.get(info.group,
                                                          CHANNEL_GROUP_COLORS["Other"])),
                 name=info.label, showlegend=False,
             ),
-            hf_x=t, hf_y=sig,
             row=row_idx, col=1,
         )
         fig.update_yaxes(title_text=info.physical_dim or "", row=row_idx, col=1)
@@ -131,9 +153,9 @@ def make_epoch_figure(
 ) -> go.Figure:
     """30-second epoch view (PSG clinical standard).
 
-    No LTTB — one epoch holds at most ~10k samples per channel which Plotly
-    renders fine. A minimap row at the bottom shows the full-night hypnogram
-    plus a vertical marker at the current epoch.
+    No downsampling — one epoch holds at most ~10k samples per channel which
+    Plotly renders at full fidelity. A minimap row at the bottom shows the
+    full-night hypnogram plus a vertical marker at the current epoch.
     """
     chans = [c for c in channels if c in signals]
     if not chans:

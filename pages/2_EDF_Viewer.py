@@ -205,5 +205,5 @@ st.plotly_chart(fig, use_container_width=True)
 st.divider()
 st.caption(
     "본 도구는 **시연·연구 목적**의 EDF/EDF+ 뷰어이며 임상 진단을 대체하지 않습니다. "
-    "자유 줌 모드는 초기 렌더 시 LTTB 다운샘플링을 적용합니다(plotly-resampler, Steinarsson 2013). 정밀 검토는 30s 에포크 모드를 사용하세요."
+    "자유 줌 모드는 stride 기반 다운샘플링으로 채널당 최대 5,000 포인트로 제한합니다 (대용량 PSG 안정 렌더링). 정밀 검토는 30s 에포크 모드를 사용하세요."
 )

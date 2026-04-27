@@ -200,12 +200,60 @@ c3.metric("SleepHQ 라벨", int(sleephq_count))
 
 cmp_aasm = evaluator.compare_with_sleephq(events_aasm, events)
 cmp_resmed = evaluator.compare_with_sleephq(events_resmed, events)
+
+
+def _agree_row(label: str, cmp: dict) -> dict:
+    return {
+        "비교": label,
+        "검출": cmp["detected_count"],
+        "라벨": cmp["sleephq_count"],
+        "Precision (정밀도)": cmp["precision"],
+        "Recall (재현율)": cmp["recall"],
+        "F1 (조화평균)": cmp["f1"],
+    }
+
+
 agree_df = pd.DataFrame([
-    {"비교": "AASM vs SleepHQ",   **cmp_aasm},
-    {"비교": "ResMed vs SleepHQ", **cmp_resmed},
+    _agree_row("AASM vs SleepHQ",   cmp_aasm),
+    _agree_row("ResMed vs SleepHQ", cmp_resmed),
 ])
 st.dataframe(agree_df, use_container_width=True, hide_index=True)
-st.caption("Precision/Recall은 timestamp overlap 단위로 산출됩니다 (각 검출 이벤트가 SleepHQ 이벤트와 시간상 겹치면 TP).")
+st.caption(
+    "Precision(정밀도) = 검출 중 SleepHQ와 시간이 겹친 비율 / "
+    "Recall(재현율) = SleepHQ 라벨 중 검출이 잡은 비율 / "
+    "F1 = 둘의 조화평균. 각 검출 이벤트가 SleepHQ 이벤트와 timestamp overlap 시 TP로 간주합니다."
+)
+
+# Algorithm summary table
+st.markdown("**알고리즘 요약**")
+algo_df = pd.DataFrame([
+    {
+        "알고리즘": "AASM",
+        "Apnea 기준":   "flow ≥90% 감소 (ratio < 0.10)가 ≥10초",
+        "Hypopnea 기준":"flow ≥30% 감소 (ratio < 0.70)가 ≥10초",
+        "Baseline":     "직전 2분 mean",
+        "출처":         "Berry RB et al., J Clin Sleep Med 2012",
+    },
+    {
+        "알고리즘": "ResMed",
+        "Apnea 기준":   "envelope < 25% baseline가 ≥10초 (슬라이더 조절)",
+        "Hypopnea 기준":"envelope < 50% baseline가 ≥10초 (슬라이더 조절)",
+        "Baseline":     "100초 rolling 60th percentile",
+        "출처":         "ResMed AirSense 10 AutoSet White Paper",
+    },
+    {
+        "알고리즘": "SleepHQ 라벨",
+        "Apnea 기준":   "ResMed FOT 기반 기기 내부 알고리즘 (CA/OA 분류 포함)",
+        "Hypopnea 기준":"동일 (Hypopnea는 별도 라벨)",
+        "Baseline":     "기기 내부 baseline",
+        "출처":         "ResMed FOT — Farré R et al., Eur Respir J 1998",
+    },
+])
+st.dataframe(algo_df, hide_index=True, use_container_width=True)
+st.caption(
+    "ⓘ 본 검출기는 통합 Apnea만 산출하며 CA/OA 구분은 FOT 채널이 export에 없어 1차 버전에서 불가합니다. "
+    "그래서 SleepHQ 라벨(CA/H 분류된 정확값)과의 비교가 검증 기준이 됩니다."
+)
 
 # ─────────────────────────────────────────────────────────────────────
 # Section 4 — Time-series charts (multichannel stacked)

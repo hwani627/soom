@@ -30,6 +30,13 @@ def test_classify_channel_resp():
     assert edf_loader.classify_channel("Resp oro-nasal") == "Resp"
 
 
+def test_classify_channel_resp_variants():
+    assert edf_loader.classify_channel("Respiratory effort") == "Resp"
+    assert edf_loader.classify_channel("Respiration") == "Resp"
+    assert edf_loader.classify_channel("Thoracic belt") == "Resp"
+    assert edf_loader.classify_channel("Abdominal belt") == "Resp"
+
+
 def test_classify_channel_spo2():
     assert edf_loader.classify_channel("SpO2") == "SpO2"
     assert edf_loader.classify_channel("Sa02") == "SpO2"

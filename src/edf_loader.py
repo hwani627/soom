@@ -13,8 +13,9 @@ from pathlib import Path
 import numpy as np
 
 # Channel-group classification rules.
-# Order matters: SpO2 comes before generic O-checks, EEG before EOG/EMG so
-# "EOG" doesn't accidentally match "EEG" patterns.
+# Patterns are word-boundary anchored so substring collisions are impossible
+# (e.g., "EEOG" → Other, not EOG). The rule order doesn't affect correctness;
+# it just reflects test ordering and how often each group appears in PSG data.
 # Note: "Sa02" (with digit 0) is treated as a common transcription variant of
 # "SaO2"; the pattern covers both the letter O and the digit 0.
 _GROUP_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -22,8 +23,9 @@ _GROUP_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("EEG",  re.compile(r"\beeg\b",  re.IGNORECASE)),
     ("EOG",  re.compile(r"\beog\b",  re.IGNORECASE)),
     ("EMG",  re.compile(r"\bemg\b",  re.IGNORECASE)),
-    ("Resp", re.compile(r"\b(resp|respir|airflow|nasal|oro-?nasal|thor|abd)\b",
-                        re.IGNORECASE)),
+    ("Resp", re.compile(
+        r"\b(resp(ir(ation|atory)?)?|airflow|nasal|oro-?nasal|thor(ax|acic)?|abd(om(en|inal)?)?)\b",
+        re.IGNORECASE)),
 )
 
 

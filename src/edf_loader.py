@@ -59,3 +59,45 @@ class EdfMeta:
     start_datetime: datetime
     duration_sec: float
     channels: tuple[ChannelInfo, ...] = field(default_factory=tuple)
+
+
+def list_edf_files(root: Path) -> list[Path]:
+    """All `*.edf` files in *root*, excluding `*-Hypnogram.edf`. Alphabetical.
+
+    Returns an empty list if *root* does not exist.
+    """
+    root = Path(root)
+    if not root.is_dir():
+        return []
+    return sorted(
+        p for p in root.glob("*.edf")
+        if not p.name.endswith("-Hypnogram.edf")
+    )
+
+
+def pair_hypnogram(psg_path: Path) -> Path | None:
+    """Locate the Hypnogram EDF that pairs with *psg_path*, if any.
+
+    Two-stage match in the same directory:
+      1. Exact stem swap: ``<stem with '-PSG' replaced by '-Hypnogram'>.edf``.
+      2. Subject-night prefix: first 7 chars of the stem (Sleep-EDF Cassette
+         convention; PSG and Hypnogram differ only in the last char of stem).
+
+    Returns ``None`` if neither produces a hit.
+    """
+    psg_path = Path(psg_path)
+    parent = psg_path.parent
+
+    # Stage 1: exact stem swap
+    if "-PSG" in psg_path.stem:
+        candidate = parent / (psg_path.stem.replace("-PSG", "-Hypnogram") + ".edf")
+        if candidate.is_file():
+            return candidate
+
+    # Stage 2: subject-night prefix glob (Sleep-EDF Cassette pattern)
+    if len(psg_path.stem) >= 7:
+        prefix = psg_path.stem[:7]
+        for cand in sorted(parent.glob(f"{prefix}*-Hypnogram.edf")):
+            return cand  # first match wins
+
+    return None

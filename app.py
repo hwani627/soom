@@ -68,6 +68,7 @@ def _detect_resmed_cached(date: str, apnea_thr: float, hypop_thr: float, min_dur
 # ─────────────────────────────────────────────────────────────────────
 st.sidebar.title("🌙 Soom Analyzer")
 st.sidebar.caption("PSG-Level CPAP Demo · v0.2.0")
+st.sidebar.caption("작성 : 최영환")
 
 available_dates = loader.list_available_dates(DATA_ROOT)
 if not available_dates:

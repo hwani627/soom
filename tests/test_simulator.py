@@ -167,3 +167,27 @@ class TestExporter:
         assert "pressure_cmh2o" in df.columns
         assert "time_s" in df.columns
         assert len(df) == int(cfg.duration_s * cfg.fs_hz)
+
+
+from simulator import plotting  # noqa: E402
+
+
+class TestPlotting:
+    def test_build_figure_basic_returns_two_traces(self):
+        cfg = generator.default_demo_scenario()
+        signals, gt = generator.synthesize_session(cfg, seed=42)
+        fig = plotting.build_figure(signals, gt, show_advanced=False)
+        assert len(fig.data) >= 2
+
+    def test_build_figure_advanced_returns_more_traces(self):
+        cfg = generator.default_demo_scenario()
+        signals, gt = generator.synthesize_session(cfg, seed=42)
+        fig_basic = plotting.build_figure(signals, gt, show_advanced=False)
+        fig_adv = plotting.build_figure(signals, gt, show_advanced=True)
+        assert len(fig_adv.data) > len(fig_basic.data)
+
+    def test_event_shapes_count_matches_gt(self):
+        cfg = generator.default_demo_scenario()
+        signals, gt = generator.synthesize_session(cfg, seed=42)
+        fig = plotting.build_figure(signals, gt, show_advanced=False)
+        assert len(fig.layout.shapes) >= len(gt.events)

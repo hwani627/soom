@@ -106,3 +106,64 @@ class TestRandomizer:
         a = randomizer.randomize_widgets(seed=123)
         b = randomizer.randomize_widgets(seed=123)
         assert a == b
+
+
+import io
+import json
+import zipfile
+
+from simulator import exporter  # noqa: E402
+
+
+class TestExporter:
+    def _build_session(self, seed=42):
+        cfg = generator.default_demo_scenario()
+        signals, gt = generator.synthesize_session(cfg, seed=seed)
+        return cfg, signals, gt
+
+    def test_zip_contains_four_files(self):
+        cfg, signals, gt = self._build_session()
+        zip_bytes = exporter.build_zip(signals, gt, cfg, seed=42)
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+            names = set(z.namelist())
+        assert names == {"signal.csv", "ground_truth.csv", "metadata.json", "README.txt"}
+
+    def test_signal_csv_row_count_matches_duration_fs(self):
+        cfg, signals, gt = self._build_session()
+        zip_bytes = exporter.build_zip(signals, gt, cfg, seed=42)
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+            with z.open("signal.csv") as f:
+                lines = f.read().decode().strip().split("\n")
+        n_data = len(lines) - 1
+        assert n_data == int(cfg.duration_s * cfg.fs_hz)
+
+    def test_ground_truth_csv_count_matches(self):
+        cfg, signals, gt = self._build_session()
+        zip_bytes = exporter.build_zip(signals, gt, cfg, seed=42)
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+            with z.open("ground_truth.csv") as f:
+                lines = f.read().decode().strip().split("\n")
+        n_events = len(lines) - 1
+        assert n_events == len(gt.events)
+
+    def test_metadata_json_schema_v1(self):
+        cfg, signals, gt = self._build_session()
+        zip_bytes = exporter.build_zip(signals, gt, cfg, seed=42)
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+            meta = json.loads(z.read("metadata.json").decode())
+        assert meta["schema_version"] == "1.0"
+        assert meta["seed"] == 42
+        assert meta["fs_hz"] == cfg.fs_hz
+        assert "scenario" in meta
+        assert "event_summary" in meta
+
+    def test_csv_readable_by_pandas(self):
+        import pandas as pd
+        cfg, signals, gt = self._build_session()
+        zip_bytes = exporter.build_zip(signals, gt, cfg, seed=42)
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+            with z.open("signal.csv") as f:
+                df = pd.read_csv(f)
+        assert "pressure_cmh2o" in df.columns
+        assert "time_s" in df.columns
+        assert len(df) == int(cfg.duration_s * cfg.fs_hz)

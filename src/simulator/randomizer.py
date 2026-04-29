@@ -34,4 +34,6 @@ def randomize_widgets(seed: int) -> dict:
         "measurement_noise_std_cmh2o": float(rng.uniform(0.02, 0.10)),
         "power_line_50hz_enabled": bool(rng.random() < 0.4),
         "unintentional_leak_lpm": float(rng.choice([0.0, 0.0, 0.0, 10.0, 20.0])),
+        # intentional_leak_lpm varies with mask type (20~40 L/min); randomize within range
+        "intentional_leak_lpm": float(rng.uniform(20.0, 40.0)),
     }

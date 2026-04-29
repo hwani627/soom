@@ -40,7 +40,15 @@ def _git_short_hash() -> str:
         return "unknown"
 
 
+_REQUIRED_SIGNAL_KEYS = frozenset(
+    {"t_s", "pressure_cmh2o", "flow_lpm", "flow_patient_lpm", "blower_rpm"}
+)
+
+
 def _signal_dataframe(signals: dict) -> pd.DataFrame:
+    missing = _REQUIRED_SIGNAL_KEYS - signals.keys()
+    if missing:
+        raise ValueError(f"signals dict missing keys: {sorted(missing)}")
     return pd.DataFrame({
         "time_s": signals["t_s"],
         "pressure_cmh2o": signals["pressure_cmh2o"],

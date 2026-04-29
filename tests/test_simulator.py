@@ -94,13 +94,14 @@ from simulator import randomizer  # noqa: E402
 class TestRandomizer:
     def test_randomize_within_clinical_ranges(self):
         widgets = randomizer.randomize_widgets(seed=42)
-        assert 60.0 <= widgets["duration_s"] <= 1800.0
-        assert 8.0 <= widgets["rr_bpm"] <= 30.0
-        assert 200.0 <= widgets["tv_ml"] <= 800.0
-        assert 4.0 <= widgets["base_pressure_cmh2o"] <= 20.0
-        assert 40.0 <= widgets["hr_bpm"] <= 100.0
-        assert 0 <= widgets["n_oa"] <= 20
-        assert 0 <= widgets["n_hypopnea"] <= 20
+        assert widgets["duration_s"] in {180.0, 300.0, 600.0, 900.0}
+        assert 12.0 <= widgets["rr_bpm"] <= 20.0
+        assert 380.0 <= widgets["tv_ml"] <= 620.0
+        assert 6.0 <= widgets["base_pressure_cmh2o"] <= 14.0
+        assert 55.0 <= widgets["hr_bpm"] <= 85.0
+        assert 0 <= widgets["n_oa"] <= 5
+        assert 0 <= widgets["n_hypopnea"] <= 4
+        assert 20.0 <= widgets["intentional_leak_lpm"] <= 40.0
 
     def test_pinned_seed_produces_identical_output(self):
         a = randomizer.randomize_widgets(seed=123)

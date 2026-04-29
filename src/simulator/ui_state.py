@@ -53,7 +53,8 @@ def build_scenario_config(widgets: dict, seed: int) -> ScenarioConfig:
 
     oa = alloc(int(widgets["n_oa"]), float(widgets["oa_mean_dur_s"]))
     ca = alloc(int(widgets["n_ca"]), float(widgets["ca_mean_dur_s"]))
-    ma_intervals = alloc(int(widgets.get("n_ma", 0)), float(widgets["oa_mean_dur_s"]))
+    # MA duration falls back to oa_mean_dur_s (no separate slider; clinically similar)
+    ma_intervals = alloc(int(widgets.get("n_ma", 0)), float(widgets.get("ma_mean_dur_s", widgets["oa_mean_dur_s"])))
     hyps_raw = alloc(int(widgets["n_hypopnea"]), float(widgets["hypopnea_mean_dur_s"]))
     hyps = [(s, d, float(rng.uniform(0.3, 0.6))) for s, d in hyps_raw]
     snores = alloc(int(widgets["n_snore"]), 30.0)

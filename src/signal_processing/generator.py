@@ -62,17 +62,39 @@ class GroundTruth:
 # ---------------------------------------------------------------------------
 
 
-def _breath_flow(t: np.ndarray, rr_bpm: float, tv_ml: float) -> np.ndarray:
-    """Sinusoidal flow (L/min) from RR (bpm) and TV (mL).
+def _breath_flow(t: np.ndarray, rr_bpm: float, tv_ml: float,
+                 ie_ratio: float = 1.0) -> np.ndarray:
+    """Asymmetric respiratory flow waveform.
 
-    Uses a flow waveform whose peak inspiratory flow corresponds to the
-    requested tidal volume (TV = ∫ flow dt over inspiration).
+    ie_ratio = insp_time / exp_time. 1.0 = symmetric (pure sine).
+    TV (tidal volume) is preserved regardless of ie_ratio.
     """
-    f_breath = rr_bpm / 60.0  # Hz
-    omega = 2 * np.pi * f_breath
-    # Peak flow such that ∫ flow over half-cycle = TV (mL → L)
-    peak_flow_lpm = (tv_ml / 1000.0) * omega * 60.0 / 2.0
-    return peak_flow_lpm * np.sin(omega * t)
+    f_breath = rr_bpm / 60.0
+    period = 1.0 / f_breath
+
+    # Fast path: pure sine preserves bit-identical backward compatibility.
+    if ie_ratio == 1.0:
+        omega = 2 * np.pi * f_breath
+        peak_flow_lpm = (tv_ml / 1000.0) * omega * 60.0 / 2.0
+        return peak_flow_lpm * np.sin(omega * t)
+
+    insp_dur = float(np.clip(
+        period * ie_ratio / (1.0 + ie_ratio),
+        0.1 * period, 0.9 * period,
+    ))
+    exp_dur = period - insp_dur
+
+    phase = np.mod(t, period)
+    flow = np.zeros_like(t)
+    insp_mask = phase < insp_dur
+    exp_mask = ~insp_mask
+    flow[insp_mask] = np.sin(np.pi * phase[insp_mask] / insp_dur)
+    flow[exp_mask] = -np.sin(np.pi * (phase[exp_mask] - insp_dur) / exp_dur)
+
+    # Scale peak so ∫(insp flow) dt = TV
+    insp_integral_unit = (2.0 / np.pi) * insp_dur  # area under unit half-sine
+    peak_flow_lpm = (tv_ml / 1000.0) / insp_integral_unit * 60.0
+    return peak_flow_lpm * flow
 
 
 def _flow_to_pressure(flow_lpm: np.ndarray, base_pressure_cmh2o: float = 9.5) -> np.ndarray:
@@ -136,6 +158,7 @@ class ScenarioConfig:
     base_pressure_cmh2o: float = 9.5
     intentional_leak_lpm: float = 24.0
     blower_rpm_baseline: float = 18000.0
+    ie_ratio: float = 1.0  # insp_time / exp_time; 1.0 = symmetric (1:1)
 
     # Event schedule (start_s, duration_s)
     obstructive_apneas: list[tuple[float, float]] = field(default_factory=list)
@@ -172,7 +195,7 @@ def synthesize_session(cfg: ScenarioConfig, seed: int | None = 42) -> tuple[
     t = np.arange(n) / cfg.fs_hz
 
     # --- 1. Base normal breathing ---
-    flow_patient = _breath_flow(t, cfg.rr_bpm, cfg.tv_ml)
+    flow_patient = _breath_flow(t, cfg.rr_bpm, cfg.tv_ml, cfg.ie_ratio)
     pressure = _flow_to_pressure(flow_patient, cfg.base_pressure_cmh2o)
 
     gt = GroundTruth(rr_bpm=cfg.rr_bpm, tv_ml=cfg.tv_ml,

@@ -74,6 +74,31 @@ class TestGenerator:
         assert len(gt.of_type("hypopnea")) == 1
         assert len(gt.of_type("snore")) == 1
 
+    def test_ie_ratio_changes_inspiration_duration(self):
+        """ie_ratio=0.4 → inspiration is shorter than expiration (1:1.5)."""
+        cfg_sym = generator.ScenarioConfig(
+            duration_s=20.0, fs_hz=100.0, rr_bpm=15.0,
+            ie_ratio=1.0,
+            cardiogenic_amplitude_cmh2o=0.0,
+            measurement_noise_std_cmh2o=0.0,
+        )
+        cfg_asym = generator.ScenarioConfig(
+            duration_s=20.0, fs_hz=100.0, rr_bpm=15.0,
+            ie_ratio=0.4,
+            cardiogenic_amplitude_cmh2o=0.0,
+            measurement_noise_std_cmh2o=0.0,
+        )
+        sig_sym, _ = generator.synthesize_session(cfg_sym, seed=0)
+        sig_asym, _ = generator.synthesize_session(cfg_asym, seed=0)
+
+        flow_sym = sig_sym["flow_patient_lpm"]
+        flow_asym = sig_asym["flow_patient_lpm"]
+
+        insp_frac_sym = float(np.mean(flow_sym > 0))
+        insp_frac_asym = float(np.mean(flow_asym > 0))
+        assert insp_frac_sym > 0.45 and insp_frac_sym < 0.55
+        assert insp_frac_asym < insp_frac_sym - 0.05
+
 
 # ---------------------------------------------------------------------------
 # Filters

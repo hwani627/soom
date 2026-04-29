@@ -113,6 +113,22 @@ class TestGenerator:
         last = float(np.mean(flow_total[int(100 * fs):int(115 * fs)]))
         assert (last - first) > 10.0
 
+    def test_cough_event_creates_pressure_spike(self):
+        """Cough adds a brief sharp pressure spike at specified time."""
+        cfg = generator.ScenarioConfig(
+            duration_s=30.0, fs_hz=100.0, rr_bpm=15.0,
+            cough_events=[(15.0, 4.0)],
+            cardiogenic_amplitude_cmh2o=0.0,
+            measurement_noise_std_cmh2o=0.0,
+        )
+        signals, gt = generator.synthesize_session(cfg, seed=0)
+        pressure = signals["pressure_cmh2o"]
+        fs = cfg.fs_hz
+        baseline_seg = pressure[int(5 * fs):int(10 * fs)]
+        cough_seg = pressure[int(14.7 * fs):int(15.4 * fs)]
+        assert (np.max(cough_seg) - np.max(baseline_seg)) > 2.0
+        assert any(e.type == "cough" for e in gt.events)
+
     def test_ie_ratio_changes_inspiration_duration(self):
         """ie_ratio=0.4 → inspiration is shorter than expiration (1:1.5)."""
         cfg_sym = generator.ScenarioConfig(

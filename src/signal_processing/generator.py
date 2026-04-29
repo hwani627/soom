@@ -170,6 +170,8 @@ class ScenarioConfig:
     # ^ (start_s, total_duration_s, central_fraction 0~1)
     unintentional_leak_lpm: float = 0.0
     unintentional_leak_profile: str = "constant"  # "constant" | "ramp" | "burst"
+    cough_events: list[tuple[float, float]] = field(default_factory=list)
+    # ^ (start_s, peak_amplitude_cmh2o)
 
     # Always-on physiological
     cardiogenic_amplitude_cmh2o: float = 0.25
@@ -282,6 +284,23 @@ def synthesize_session(cfg: ScenarioConfig, seed: int | None = 42) -> tuple[
         snore += 0.2 * rng.standard_normal(e - s)
         pressure[s:e] += snore
         gt.events.append(GroundTruthEvent("snore", start_s, end_s))
+
+    # --- 6b. Inject cough events (gaussian-shaped pressure spike) ---
+    for start_s, peak_amp in cfg.cough_events:
+        center = int(start_s * cfg.fs_hz)
+        sigma_samples = int(0.1 * cfg.fs_hz)  # 100 ms half-width
+        win_n = sigma_samples * 6
+        idx = np.arange(-win_n // 2, win_n // 2)
+        kernel = peak_amp * np.exp(-(idx ** 2) / (2 * sigma_samples ** 2))
+        s = max(center + idx[0], 0)
+        e = min(center + idx[-1] + 1, n)
+        ks = s - (center + idx[0])
+        ke = ks + (e - s)
+        pressure[s:e] += kernel[ks:ke]
+        gt.events.append(GroundTruthEvent(
+            "cough", start_s, start_s + win_n / cfg.fs_hz,
+            metadata={"peak_amplitude_cmh2o": float(peak_amp)},
+        ))
 
     # --- 7. Add measurement noise ---
     noise = rng.normal(0.0, cfg.measurement_noise_std_cmh2o, n)

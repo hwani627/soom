@@ -169,7 +169,7 @@ class ScenarioConfig:
     mixed_apneas: list[tuple[float, float, float]] = field(default_factory=list)
     # ^ (start_s, total_duration_s, central_fraction 0~1)
     unintentional_leak_lpm: float = 0.0
-    unintentional_leak_profile: str = "constant"  # "constant" | "ramp" | "burst"
+    unintentional_leak_profile: Literal["constant", "ramp", "burst"] = "constant"
     cough_events: list[tuple[float, float]] = field(default_factory=list)
     # ^ (start_s, peak_amplitude_cmh2o)
     power_line_50hz_amplitude_cmh2o: float = 0.0
@@ -308,7 +308,8 @@ def synthesize_session(cfg: ScenarioConfig, seed: int | None = 42) -> tuple[
         ke = ks + (e - s)
         pressure[s:e] += kernel[ks:ke]
         gt.events.append(GroundTruthEvent(
-            "cough", start_s, start_s + win_n / cfg.fs_hz,
+            "cough", start_s,
+            min(start_s + win_n / cfg.fs_hz, cfg.duration_s),
             metadata={"peak_amplitude_cmh2o": float(peak_amp)},
         ))
 

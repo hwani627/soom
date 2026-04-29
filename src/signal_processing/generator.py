@@ -67,7 +67,7 @@ def _breath_flow(t: np.ndarray, rr_bpm: float, tv_ml: float,
     """Asymmetric respiratory flow waveform.
 
     ie_ratio = insp_time / exp_time. 1.0 = symmetric (pure sine).
-    TV (tidal volume) is preserved regardless of ie_ratio.
+    TV (inspiratory tidal volume) is preserved regardless of ie_ratio.
     """
     f_breath = rr_bpm / 60.0
     period = 1.0 / f_breath

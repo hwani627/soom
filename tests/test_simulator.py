@@ -86,3 +86,23 @@ class TestUIState:
         }
         cfg = ui_state.build_scenario_config(widgets, seed=0)
         assert len(cfg.obstructive_apneas) < 20
+
+
+from simulator import randomizer  # noqa: E402
+
+
+class TestRandomizer:
+    def test_randomize_within_clinical_ranges(self):
+        widgets = randomizer.randomize_widgets(seed=42)
+        assert 60.0 <= widgets["duration_s"] <= 1800.0
+        assert 8.0 <= widgets["rr_bpm"] <= 30.0
+        assert 200.0 <= widgets["tv_ml"] <= 800.0
+        assert 4.0 <= widgets["base_pressure_cmh2o"] <= 20.0
+        assert 40.0 <= widgets["hr_bpm"] <= 100.0
+        assert 0 <= widgets["n_oa"] <= 20
+        assert 0 <= widgets["n_hypopnea"] <= 20
+
+    def test_pinned_seed_produces_identical_output(self):
+        a = randomizer.randomize_widgets(seed=123)
+        b = randomizer.randomize_widgets(seed=123)
+        assert a == b

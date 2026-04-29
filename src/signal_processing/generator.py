@@ -168,6 +168,8 @@ class ScenarioConfig:
     snore_episodes: list[tuple[float, float]] = field(default_factory=list)
     mixed_apneas: list[tuple[float, float, float]] = field(default_factory=list)
     # ^ (start_s, total_duration_s, central_fraction 0~1)
+    unintentional_leak_lpm: float = 0.0
+    unintentional_leak_profile: str = "constant"  # "constant" | "ramp" | "burst"
 
     # Always-on physiological
     cardiogenic_amplitude_cmh2o: float = 0.25
@@ -285,8 +287,18 @@ def synthesize_session(cfg: ScenarioConfig, seed: int | None = 42) -> tuple[
     noise = rng.normal(0.0, cfg.measurement_noise_std_cmh2o, n)
     pressure = pressure + noise
 
-    # --- 8. Total flow including intentional leak ---
-    flow_total = flow_patient + cfg.intentional_leak_lpm
+    # --- 8. Total flow including intentional + unintentional leak ---
+    leak_profile = np.zeros(n)
+    if cfg.unintentional_leak_lpm > 0.0:
+        if cfg.unintentional_leak_profile == "constant":
+            leak_profile += cfg.unintentional_leak_lpm
+        elif cfg.unintentional_leak_profile == "ramp":
+            leak_profile += np.linspace(0.0, cfg.unintentional_leak_lpm, n)
+        elif cfg.unintentional_leak_profile == "burst":
+            burst_start = int(0.4 * n)
+            burst_end = int(0.6 * n)
+            leak_profile[burst_start:burst_end] += cfg.unintentional_leak_lpm
+    flow_total = flow_patient + cfg.intentional_leak_lpm + leak_profile
 
     # --- 9. Blower RPM from closed-loop demand ---
     # Real CPAP: blower delivers (patient_flow + intentional_leak) at constant

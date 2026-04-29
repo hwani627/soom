@@ -97,6 +97,22 @@ class TestGenerator:
         rms_second = float(np.sqrt(np.mean(second_half ** 2)))
         assert rms_first > rms_second * 1.5
 
+    def test_unintentional_leak_ramp_increases_total_flow(self):
+        """unintentional_leak_profile='ramp' → total_flow grows linearly."""
+        cfg = generator.ScenarioConfig(
+            duration_s=120.0, fs_hz=100.0, rr_bpm=15.0,
+            unintentional_leak_lpm=20.0,
+            unintentional_leak_profile="ramp",
+            cardiogenic_amplitude_cmh2o=0.0,
+            measurement_noise_std_cmh2o=0.0,
+        )
+        signals, _ = generator.synthesize_session(cfg, seed=0)
+        flow_total = signals["flow_lpm"]
+        fs = cfg.fs_hz
+        first = float(np.mean(flow_total[int(5 * fs):int(20 * fs)]))
+        last = float(np.mean(flow_total[int(100 * fs):int(115 * fs)]))
+        assert (last - first) > 10.0
+
     def test_ie_ratio_changes_inspiration_duration(self):
         """ie_ratio=0.4 → inspiration is shorter than expiration (1:1.5)."""
         cfg_sym = generator.ScenarioConfig(

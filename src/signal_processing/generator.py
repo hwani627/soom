@@ -172,6 +172,7 @@ class ScenarioConfig:
     unintentional_leak_profile: str = "constant"  # "constant" | "ramp" | "burst"
     cough_events: list[tuple[float, float]] = field(default_factory=list)
     # ^ (start_s, peak_amplitude_cmh2o)
+    power_line_50hz_amplitude_cmh2o: float = 0.0
 
     # Always-on physiological
     cardiogenic_amplitude_cmh2o: float = 0.25
@@ -301,6 +302,12 @@ def synthesize_session(cfg: ScenarioConfig, seed: int | None = 42) -> tuple[
             "cough", start_s, start_s + win_n / cfg.fs_hz,
             metadata={"peak_amplitude_cmh2o": float(peak_amp)},
         ))
+
+    # --- 6c. Inject 50 Hz power-line interference ---
+    if cfg.power_line_50hz_amplitude_cmh2o > 0.0 and 50.0 < cfg.fs_hz / 2.0:
+        pressure = pressure + cfg.power_line_50hz_amplitude_cmh2o * np.sin(
+            2 * np.pi * 50.0 * t
+        )
 
     # --- 7. Add measurement noise ---
     noise = rng.normal(0.0, cfg.measurement_noise_std_cmh2o, n)

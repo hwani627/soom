@@ -129,6 +129,22 @@ class TestGenerator:
         assert (np.max(cough_seg) - np.max(baseline_seg)) > 2.0
         assert any(e.type == "cough" for e in gt.events)
 
+    def test_50hz_interference_appears_in_spectrum(self):
+        """power_line_50hz_amplitude > 0 → strong 50 Hz peak in FFT."""
+        cfg = generator.ScenarioConfig(
+            duration_s=10.0, fs_hz=200.0, rr_bpm=15.0,
+            power_line_50hz_amplitude_cmh2o=0.3,
+            cardiogenic_amplitude_cmh2o=0.0,
+            measurement_noise_std_cmh2o=0.0,
+        )
+        signals, _ = generator.synthesize_session(cfg, seed=0)
+        from numpy.fft import rfft, rfftfreq
+        spec = np.abs(rfft(signals["pressure_cmh2o"]))
+        freqs = rfftfreq(len(signals["pressure_cmh2o"]), 1.0 / cfg.fs_hz)
+        i_50 = int(np.argmin(np.abs(freqs - 50.0)))
+        i_25 = int(np.argmin(np.abs(freqs - 25.0)))
+        assert spec[i_50] > spec[i_25] * 5
+
     def test_ie_ratio_changes_inspiration_duration(self):
         """ie_ratio=0.4 → inspiration is shorter than expiration (1:1.5)."""
         cfg_sym = generator.ScenarioConfig(

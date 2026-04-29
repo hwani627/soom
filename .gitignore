@@ -18,3 +18,9 @@ htmlcov/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Superpowers brainstorming mockups
+.superpowers/
+
+# Git worktrees (isolated workspaces)
+.worktrees/

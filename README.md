@@ -30,6 +30,25 @@ pip install pytest
 pytest tests/ -v
 ```
 
+### 신호처리 PoC 데모 (단일 차압 센서 7-Stage 파이프라인)
+
+`3.개발기술/03_신호처리_사양서.md` v0.4 §0.6의 7-Stage 파이프라인을 합성 신호로 검증.
+
+```bash
+# 5분 합성 세션 (2× OA + 1× CA + 1× hypopnea + 1× snore) 생성
+# → Stage 2~6 처리 → 6-subplot diagnostic figure 저장
+python scripts/demo_signal_pipeline.py
+
+# 단위·e2e 테스트 17건 (Generator·Filters·FlowEstimator·BreathAnalyzer·EventDetector·E2E)
+pytest tests/test_signal_processing.py -v
+```
+
+산출물:
+- `demo_pipeline_output.png` — Raw pressure / 4-branch BPF / Flow truth vs estimate / Envelope+baseline / Detected events / 정확도 요약
+- 콘솔 출력: AHI, RR, Flow RMSE, 이벤트 sensitivity·PPV, OA/CA 분류 정확도
+
+**현 PoC 성능 (synthetic seed=42)**: Flow RMSE ~21%, 이벤트 sensitivity 100%, OA/CA 분류 100%.
+
 ### Streamlit Community Cloud 배포
 
 1. https://share.streamlit.io 접속 후 GitHub 로그인

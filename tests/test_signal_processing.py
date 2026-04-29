@@ -74,6 +74,29 @@ class TestGenerator:
         assert len(gt.of_type("hypopnea")) == 1
         assert len(gt.of_type("snore")) == 1
 
+    def test_mixed_apnea_central_then_obstructive(self):
+        """MA = central first half (cardiogenic preserved) → obstructive second half."""
+        cfg = generator.ScenarioConfig(
+            duration_s=80.0, fs_hz=100.0, rr_bpm=15.0,
+            mixed_apneas=[(30.0, 20.0, 0.5)],
+            cardiogenic_amplitude_cmh2o=0.4,
+            measurement_noise_std_cmh2o=0.02,
+        )
+        signals, gt = generator.synthesize_session(cfg, seed=3)
+        fs = cfg.fs_hz
+        ma_events = gt.of_type("MA")
+        assert len(ma_events) == 1
+        assert abs(ma_events[0].start_s - 30.0) < 0.1
+        assert abs(ma_events[0].end_s - 50.0) < 0.1
+        from signal_processing import filters
+        refined = filters.stage2_refine(signals["pressure_cmh2o"], fs_in=fs, fs_out=fs)
+        cardio = filters.bandpass_cardiogenic(refined, fs=fs)
+        first_half = cardio[int(32 * fs):int(38 * fs)]
+        second_half = cardio[int(42 * fs):int(48 * fs)]
+        rms_first = float(np.sqrt(np.mean(first_half ** 2)))
+        rms_second = float(np.sqrt(np.mean(second_half ** 2)))
+        assert rms_first > rms_second * 1.5
+
     def test_ie_ratio_changes_inspiration_duration(self):
         """ie_ratio=0.4 → inspiration is shorter than expiration (1:1.5)."""
         cfg_sym = generator.ScenarioConfig(

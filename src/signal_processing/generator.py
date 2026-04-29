@@ -27,7 +27,7 @@ from typing import Literal
 
 import numpy as np
 
-EventType = Literal["normal", "OA", "CA", "hypopnea", "snore", "leak", "csr"]
+EventType = Literal["normal", "OA", "CA", "MA", "hypopnea", "snore", "leak", "csr", "cough"]
 
 
 @dataclass
@@ -166,6 +166,8 @@ class ScenarioConfig:
     hypopneas: list[tuple[float, float, float]] = field(default_factory=list)
     # ^ (start, duration, severity 0~1 — fraction of normal flow remaining)
     snore_episodes: list[tuple[float, float]] = field(default_factory=list)
+    mixed_apneas: list[tuple[float, float, float]] = field(default_factory=list)
+    # ^ (start_s, total_duration_s, central_fraction 0~1)
 
     # Always-on physiological
     cardiogenic_amplitude_cmh2o: float = 0.25
@@ -240,6 +242,23 @@ def synthesize_session(cfg: ScenarioConfig, seed: int | None = 42) -> tuple[
         pressure = cfg.base_pressure_cmh2o + pressure_mod
         gt.events.append(GroundTruthEvent(
             "hypopnea", start_s, end_s, metadata={"severity": severity}
+        ))
+
+    # --- 4b. Inject mixed apneas (central → obstructive transition) ---
+    for start_s, total_dur, central_fraction in cfg.mixed_apneas:
+        central_fraction = float(np.clip(central_fraction, 0.0, 1.0))
+        mid_s = start_s + total_dur * central_fraction
+        end_s = start_s + total_dur
+        flow_patient = _suppress(flow_patient, cfg.fs_hz, start_s, end_s, factor=0.05)
+        pressure_mod = pressure - cfg.base_pressure_cmh2o
+        pressure_mod = _suppress(pressure_mod, cfg.fs_hz, start_s, end_s, factor=0.05)
+        pressure = cfg.base_pressure_cmh2o + pressure_mod
+        cardiogenic_mask = _suppress(
+            cardiogenic_mask, cfg.fs_hz, mid_s, end_s, factor=0.05
+        )
+        gt.events.append(GroundTruthEvent(
+            "MA", start_s, end_s,
+            metadata={"central_fraction": central_fraction, "transition_s": mid_s},
         ))
 
     # --- 5. Add cardiogenic oscillation (1~3 Hz, modulated by airway state) ---

@@ -173,6 +173,8 @@ class ScenarioConfig:
     cough_events: list[tuple[float, float]] = field(default_factory=list)
     # ^ (start_s, peak_amplitude_cmh2o)
     power_line_50hz_amplitude_cmh2o: float = 0.0
+    epr_enabled: bool = False
+    epr_relief_cmh2o: float = 0.0
 
     # Always-on physiological
     cardiogenic_amplitude_cmh2o: float = 0.25
@@ -204,6 +206,13 @@ def synthesize_session(cfg: ScenarioConfig, seed: int | None = 42) -> tuple[
     # --- 1. Base normal breathing ---
     flow_patient = _breath_flow(t, cfg.rr_bpm, cfg.tv_ml, cfg.ie_ratio)
     pressure = _flow_to_pressure(flow_patient, cfg.base_pressure_cmh2o)
+    # EPR: drop pressure during expiration (flow < 0)
+    if cfg.epr_enabled and cfg.epr_relief_cmh2o > 0.0:
+        epr_drop = np.where(flow_patient < 0, cfg.epr_relief_cmh2o, 0.0)
+        win = max(int(0.1 * cfg.fs_hz), 1)
+        kernel = np.ones(win) / win
+        epr_drop = np.convolve(epr_drop, kernel, mode="same")
+        pressure = pressure - epr_drop
 
     gt = GroundTruth(rr_bpm=cfg.rr_bpm, tv_ml=cfg.tv_ml,
                      intentional_leak_lpm=cfg.intentional_leak_lpm)

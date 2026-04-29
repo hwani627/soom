@@ -145,6 +145,25 @@ class TestGenerator:
         i_25 = int(np.argmin(np.abs(freqs - 25.0)))
         assert spec[i_50] > spec[i_25] * 5
 
+    def test_epr_drops_pressure_during_expiration(self):
+        """EPR active → expiratory mean pressure < inspiratory mean."""
+        cfg = generator.ScenarioConfig(
+            duration_s=20.0, fs_hz=100.0, rr_bpm=15.0,
+            base_pressure_cmh2o=10.0,
+            epr_enabled=True,
+            epr_relief_cmh2o=2.0,
+            cardiogenic_amplitude_cmh2o=0.0,
+            measurement_noise_std_cmh2o=0.0,
+        )
+        signals, _ = generator.synthesize_session(cfg, seed=0)
+        flow = signals["flow_patient_lpm"]
+        pressure = signals["pressure_cmh2o"]
+        insp_mask = flow > 0
+        exp_mask = flow < 0
+        mean_insp = float(np.mean(pressure[insp_mask]))
+        mean_exp = float(np.mean(pressure[exp_mask]))
+        assert (mean_insp - mean_exp) > 1.0
+
     def test_ie_ratio_changes_inspiration_duration(self):
         """ie_ratio=0.4 → inspiration is shorter than expiration (1:1.5)."""
         cfg_sym = generator.ScenarioConfig(

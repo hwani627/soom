@@ -53,12 +53,12 @@ with st.sidebar:
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🎲 Randomize", use_container_width=True):
+        if st.button("🎲 Randomize", width="stretch"):
             new_widgets = randomizer.randomize_widgets(seed=int(time.time()))
             st.session_state["sim_widgets"].update(new_widgets)
             st.rerun()
     with col2:
-        if st.button("↻ Reset", use_container_width=True):
+        if st.button("↻ Reset", width="stretch"):
             for k, v in {
                 "duration_s": 300.0, "rr_bpm": 15.0, "tv_ml": 500.0, "ie_ratio": 0.5,
                 "base_pressure_cmh2o": 9.5, "epr_enabled": False, "epr_relief_cmh2o": 1.5,
@@ -162,7 +162,7 @@ except Exception as exc:
 show_advanced = st.toggle("▼ 고급 보기 (RPM · 4-branch BPF)", value=False)
 
 fig = plotting.build_figure(signals, gt, show_advanced=show_advanced)
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # Auto-random meta panel
 with st.expander("📋 자동 랜덤 메타 (read-only)", expanded=False):
@@ -183,6 +183,6 @@ st.download_button(
     data=zip_bytes,
     file_name=fname,
     mime="application/zip",
-    use_container_width=True,
+    width="stretch",
 )
 st.caption("ZIP 내부: `signal.csv` · `ground_truth.csv` · `metadata.json` · `README.txt`")
